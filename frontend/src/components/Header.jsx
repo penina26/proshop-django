@@ -3,6 +3,9 @@ import { Container, Nav, Navbar, NavDropdown } from 'react-bootstrap'
 import { LinkContainer } from 'react-router-bootstrap'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faShoppingCart, faUser } from '@fortawesome/free-solid-svg-icons'
+import SearchBox from './SearchBox';
+
+// Import the logout action from your user slice
 import { logout } from '../slices/userSlice'
 
 function Header() {
@@ -27,6 +30,7 @@ function Header() {
 
                     <Navbar.Toggle aria-controls="basic-navbar-nav" />
                     <Navbar.Collapse id="basic-navbar-nav">
+                        <SearchBox />
                         <Nav className="ms-auto">
                             <LinkContainer to='/cart'>
                                 <Nav.Link>
@@ -53,12 +57,20 @@ function Header() {
                                 </LinkContainer>
                             )}
 
-                            {/* CONDITIONAL RENDERING: Admin Menu */}
+                            {/* ADMIN MENU */}
                             {userInfo && userInfo.isAdmin && (
                                 <NavDropdown title='Admin' id='adminmenu'>
-                                    {/* You can add /admin/userlist and /admin/productlist here later! */}
+                                    <LinkContainer to='/admin/productlist'>
+                                        <NavDropdown.Item>Products</NavDropdown.Item>
+                                    </LinkContainer>
+
                                     <LinkContainer to='/admin/orderlist'>
                                         <NavDropdown.Item>Orders</NavDropdown.Item>
+                                    </LinkContainer>
+
+                                    {/* NEW: Users Link */}
+                                    <LinkContainer to='/admin/userlist'>
+                                        <NavDropdown.Item>Users</NavDropdown.Item>
                                     </LinkContainer>
                                 </NavDropdown>
                             )}

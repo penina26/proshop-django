@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Product, Order, OrderItem, ShippingAddress
+from .models import Product, Review, Order, OrderItem, ShippingAddress
 
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -78,11 +78,24 @@ class UserUpdateSerializer(serializers.Serializer):
     email = serializers.EmailField(required=False)
     password = serializers.CharField(required=False, write_only=True)
 
+class ReviewSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Review
+        fields = '__all__'
 
 class ProductSerializer(serializers.ModelSerializer):
+    # Tell the serializer to look for a custom method called get_reviews
+    reviews = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model = Product
         fields = '__all__'
+
+    # Define the custom method to fetch and serialize the reviews
+    def get_reviews(self, obj):
+        reviews = obj.review_set.all()
+        serializer = ReviewSerializer(reviews, many=True)
+        return serializer.data
 
 
 
@@ -132,3 +145,4 @@ class OrderSerializer(serializers.ModelSerializer):
             "name": user.first_name or user.username,
             "email": user.email
         }
+    

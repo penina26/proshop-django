@@ -73,6 +73,18 @@ export const listOrders = createAsyncThunk('order/listOrders', async (_, thunkAP
     }
 });
 
+//  ASYNC THUNK: Delete Order (Admin Only)
+export const deleteOrder = createAsyncThunk('order/deleteOrder', async (id, thunkAPI) => {
+    try {
+        const { user: { userInfo } } = thunkAPI.getState();
+        const config = { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${userInfo.access}` } };
+        const { data } = await axios.delete(`/api/orders/delete/${id}/`, config);
+        return data;
+    } catch (error) {
+        return thunkAPI.rejectWithValue(error.response && error.response.data.detail ? error.response.data.detail : error.message);
+    }
+});
+
 // THE SLICE (Reducer)
 const orderSlice = createSlice({
     name: 'order',
@@ -81,14 +93,18 @@ const orderSlice = createSlice({
         loadingPay: false, successPay: false,
         myOrders: [], loadingMyOrders: false, errorMyOrders: null,
         orderList: [], loadingOrders: false, errorOrders: null,
-        // State for tracking the delivery process
         loadingDeliver: false, successDeliver: false,
+
+        //  State for tracking the delete process
+        loadingDelete: false, successDelete: false, errorDelete: null,
     },
     reducers: {
         orderCreateReset: (state) => { state.order = {}; state.success = false; state.error = null; },
         orderPayReset: (state) => { state.loadingPay = false; state.successPay = false; },
-        // Reset delivery state
-        orderDeliverReset: (state) => { state.loadingDeliver = false; state.successDeliver = false; }
+        orderDeliverReset: (state) => { state.loadingDeliver = false; state.successDeliver = false; },
+
+        //  Reset delete state
+        orderDeleteReset: (state) => { state.successDelete = false; state.errorDelete = null; }
     },
     extraReducers: (builder) => {
         builder
@@ -115,10 +131,14 @@ const orderSlice = createSlice({
             // --- List ALL Orders Cases ---
             .addCase(listOrders.pending, (state) => { state.loadingOrders = true; state.errorOrders = null; })
             .addCase(listOrders.fulfilled, (state, action) => { state.loadingOrders = false; state.orderList = action.payload; })
-            .addCase(listOrders.rejected, (state, action) => { state.loadingOrders = false; state.errorOrders = action.payload; });
+            .addCase(listOrders.rejected, (state, action) => { state.loadingOrders = false; state.errorOrders = action.payload; })
+
+            // ---  Delete Order Cases ---
+            .addCase(deleteOrder.pending, (state) => { state.loadingDelete = true; })
+            .addCase(deleteOrder.fulfilled, (state) => { state.loadingDelete = false; state.successDelete = true; })
+            .addCase(deleteOrder.rejected, (state, action) => { state.loadingDelete = false; state.errorDelete = action.payload; });
     },
 });
 
-
-export const { orderCreateReset, orderPayReset, orderDeliverReset } = orderSlice.actions;
+export const { orderCreateReset, orderPayReset, orderDeliverReset, orderDeleteReset } = orderSlice.actions;
 export default orderSlice.reducer;

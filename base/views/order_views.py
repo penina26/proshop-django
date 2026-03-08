@@ -1,9 +1,10 @@
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated,IsAdminUser
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema, inline_serializer
+from datetime import datetime
 
 from base.models import Product, Order, OrderItem, ShippingAddress
 from base.serializers import OrderSerializer
@@ -109,3 +110,58 @@ def getOrderById(request, pk):
             
     except Order.DoesNotExist:
         return Response({'detail': 'Order does not exist'}, status=status.HTTP_404_NOT_FOUND)
+    
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def updateOrderToPaid(request, pk):
+    order = Order.objects.get(_id=pk)
+
+    # 1. Update the order status
+    order.isPaid = True
+    order.paidAt = datetime.now()
+    
+    # 2. Save the updated order back to the database
+    order.save()
+
+    return Response('Order was successfully paid')
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def getMyOrders(request):
+    user = request.user
+    
+    # Grab all orders where the user matches the currently logged-in user
+    orders = user.order_set.all()
+    
+    # We use many=True because we are returning a list of multiple orders, not just one!
+    serializer = OrderSerializer(orders, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAdminUser]) # Only admins can see all orders
+def getOrders(request):
+    orders = Order.objects.all()
+    serializer = OrderSerializer(orders, many=True)
+    return Response(serializer.data)
+
+@api_view(['PUT'])
+@permission_classes([IsAdminUser]) # Only admins can deliver orders
+def updateOrderToDelivered(request, pk):
+    order = Order.objects.get(_id=pk)
+
+    order.isDelivered = True
+    order.deliveredAt = datetime.now()
+    order.save()
+
+    return Response('Order was delivered')
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAdminUser])
+def deleteOrder(request, pk):
+    order = Order.objects.get(_id=pk)
+    order.delete()
+    return Response('Order was deleted')
+
