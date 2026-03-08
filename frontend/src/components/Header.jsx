@@ -3,8 +3,6 @@ import { Container, Nav, Navbar, NavDropdown } from 'react-bootstrap'
 import { LinkContainer } from 'react-router-bootstrap'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faShoppingCart, faUser } from '@fortawesome/free-solid-svg-icons'
-
-// Import the logout action from your user slice
 import { logout } from '../slices/userSlice'
 
 function Header() {
@@ -29,7 +27,6 @@ function Header() {
 
                     <Navbar.Toggle aria-controls="basic-navbar-nav" />
                     <Navbar.Collapse id="basic-navbar-nav">
-                        {/* 'ms-auto' pushes the links to the right side of the navbar */}
                         <Nav className="ms-auto">
                             <LinkContainer to='/cart'>
                                 <Nav.Link>
@@ -55,6 +52,17 @@ function Header() {
                                     </Nav.Link>
                                 </LinkContainer>
                             )}
+
+                            {/* CONDITIONAL RENDERING: Admin Menu */}
+                            {userInfo && userInfo.isAdmin && (
+                                <NavDropdown title='Admin' id='adminmenu'>
+                                    {/* You can add /admin/userlist and /admin/productlist here later! */}
+                                    <LinkContainer to='/admin/orderlist'>
+                                        <NavDropdown.Item>Orders</NavDropdown.Item>
+                                    </LinkContainer>
+                                </NavDropdown>
+                            )}
+
                         </Nav>
                     </Navbar.Collapse>
                 </Container>

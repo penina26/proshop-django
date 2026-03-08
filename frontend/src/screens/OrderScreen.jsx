@@ -1,28 +1,39 @@
 import React, { useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Row, Col, ListGroup, Image, Card } from 'react-bootstrap';
+import { Row, Col, ListGroup, Image, Card, Button } from 'react-bootstrap';
 import { useDispatch, useSelector } from 'react-redux';
 import Message from '../components/Message';
 import Loader from '../components/Loader';
-import { getOrderDetails } from '../slices/orderSlice';
+// 1. Import the new delivery actions
+import { getOrderDetails, payOrder, orderPayReset, deliverOrder, orderDeliverReset } from '../slices/orderSlice';
+import { PayPalButtons } from '@paypal/react-paypal-js';
 
 function OrderScreen() {
     const { id: orderId } = useParams();
     const dispatch = useDispatch();
 
-    // Pull the order details, loading status, and error from Redux
+    // 2. Pull the user state to check if they are an admin
+    const userState = useSelector((state) => state.user);
+    const { userInfo } = userState;
+
+    // 3. Pull the delivery state from Redux
     const orderState = useSelector((state) => state.order);
-    const { orderDetails, error, loading } = orderState;
+    const { orderDetails, error, loading, loadingPay, successPay, loadingDeliver, successDeliver } = orderState;
 
     useEffect(() => {
-        // SAFEGUARD: If we don't have order data yet, OR if the data we have 
-        // belongs to a different order, fetch the correct one from Django!
-        if (!orderDetails || orderDetails._id !== Number(orderId)) {
+        // 4. Update safeguard to trigger a refresh if successDeliver is true!
+        if (!orderDetails || successPay || successDeliver || orderDetails._id !== Number(orderId)) {
+            dispatch(orderPayReset());
+            dispatch(orderDeliverReset()); // Reset delivery state
             dispatch(getOrderDetails(orderId));
         }
-    }, [dispatch, orderDetails, orderId]);
+    }, [dispatch, orderDetails, orderId, successPay, successDeliver]);
 
-    // Show a spinner while fetching, or an error if it fails
+    // Handler for clicking the delivery button
+    const deliverHandler = () => {
+        dispatch(deliverOrder(orderDetails));
+    };
+
     return loading ? (
         <Loader />
     ) : error ? (
@@ -31,7 +42,6 @@ function OrderScreen() {
         <div>
             <h1>Order: {orderDetails._id}</h1>
             <Row>
-                {/* LEFT COLUMN: Order Details */}
                 <Col md={8}>
                     <ListGroup variant='flush'>
                         <ListGroup.Item>
@@ -47,9 +57,8 @@ function OrderScreen() {
                                 {orderDetails.shippingAddress?.country}
                             </p>
 
-                            {/* Delivery Status Alert */}
                             {orderDetails.isDelivered ? (
-                                <Message variant='success'>Delivered on {orderDetails.deliveredAt}</Message>
+                                <Message variant='success'>Delivered on {orderDetails.deliveredAt?.substring(0, 10)}</Message>
                             ) : (
                                 <Message variant='warning'>Not Delivered</Message>
                             )}
@@ -61,11 +70,31 @@ function OrderScreen() {
                                 <strong>Method: </strong>
                                 {orderDetails.paymentMethod}
                             </p>
-                            {/* Payment Status Alert */}
                             {orderDetails.isPaid ? (
-                                <Message variant='success'>Paid on {orderDetails.paidAt}</Message>
+                                <Message variant='success'>Paid on {orderDetails.paidAt?.substring(0, 10)}</Message>
                             ) : (
-                                <Message variant='warning'>Not Paid</Message>
+                                <div>
+                                    <Message variant='warning'>Not Paid</Message>
+                                    {loadingPay && <Loader />}
+
+                                    {/* Only show PayPal buttons if the user looking at the screen is NOT an admin */}
+                                    {!userInfo?.isAdmin && (
+                                        <div className='mt-3'>
+                                            <PayPalButtons
+                                                createOrder={(data, actions) => {
+                                                    return actions.order.create({
+                                                        purchase_units: [{ amount: { value: orderDetails.totalPrice } }]
+                                                    });
+                                                }}
+                                                onApprove={(data, actions) => {
+                                                    return actions.order.capture().then((details) => {
+                                                        dispatch(payOrder({ orderId, paymentResult: details }));
+                                                    });
+                                                }}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </ListGroup.Item>
 
@@ -96,41 +125,34 @@ function OrderScreen() {
                     </ListGroup>
                 </Col>
 
-                {/* RIGHT COLUMN: Order Summary Card */}
                 <Col md={4}>
                     <Card>
                         <ListGroup variant='flush'>
                             <ListGroup.Item>
                                 <h2>Order Summary</h2>
                             </ListGroup.Item>
-
                             <ListGroup.Item>
-                                <Row>
-                                    <Col>Items:</Col>
-                                    <Col>${orderDetails.orderItems?.reduce((acc, item) => acc + item.price * item.qty, 0).toFixed(2)}</Col>
-                                </Row>
+                                <Row><Col>Items:</Col><Col>${orderDetails.orderItems?.reduce((acc, item) => acc + item.price * item.qty, 0).toFixed(2)}</Col></Row>
+                            </ListGroup.Item>
+                            <ListGroup.Item>
+                                <Row><Col>Shipping:</Col><Col>${orderDetails.shippingPrice}</Col></Row>
+                            </ListGroup.Item>
+                            <ListGroup.Item>
+                                <Row><Col>Tax:</Col><Col>${orderDetails.taxPrice}</Col></Row>
+                            </ListGroup.Item>
+                            <ListGroup.Item>
+                                <Row><Col>Total:</Col><Col>${orderDetails.totalPrice}</Col></Row>
                             </ListGroup.Item>
 
-                            <ListGroup.Item>
-                                <Row>
-                                    <Col>Shipping:</Col>
-                                    <Col>${orderDetails.shippingPrice}</Col>
-                                </Row>
-                            </ListGroup.Item>
-
-                            <ListGroup.Item>
-                                <Row>
-                                    <Col>Tax:</Col>
-                                    <Col>${orderDetails.taxPrice}</Col>
-                                </Row>
-                            </ListGroup.Item>
-
-                            <ListGroup.Item>
-                                <Row>
-                                    <Col>Total:</Col>
-                                    <Col>${orderDetails.totalPrice}</Col>
-                                </Row>
-                            </ListGroup.Item>
+                            {/*  Admin Mark as Delivered Button */}
+                            {loadingDeliver && <Loader />}
+                            {userInfo && userInfo.isAdmin && orderDetails.isPaid && !orderDetails.isDelivered && (
+                                <ListGroup.Item>
+                                    <Button type='button' className='btn btn-block w-100' onClick={deliverHandler}>
+                                        Mark As Delivered
+                                    </Button>
+                                </ListGroup.Item>
+                            )}
                         </ListGroup>
                     </Card>
                 </Col>

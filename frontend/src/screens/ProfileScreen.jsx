@@ -1,61 +1,71 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useDispatch, useSelector } from 'react-redux'
-import { Row, Col, Form, Button, InputGroup } from 'react-bootstrap'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { Row, Col, Form, Button, InputGroup, Table } from 'react-bootstrap';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faEye, faEyeSlash, faTimes } from '@fortawesome/free-solid-svg-icons';
 
-import Loader from '../components/Loader'
-import Message from '../components/Message'
-import { updateUserProfile } from '../slices/userSlice'
+import Loader from '../components/Loader';
+import Message from '../components/Message';
+import { updateUserProfile } from '../slices/userSlice';
+import { listMyOrders } from '../slices/orderSlice';
 
 function ProfileScreen() {
-    // 1. Form State
-    const [name, setName] = useState('')
-    const [email, setEmail] = useState('')
-    const [password, setPassword] = useState('')
-    const [confirmPassword, setConfirmPassword] = useState('')
-    const [message, setMessage] = useState('')
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [message, setMessage] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-    // 2. Password Toggle State
-    const [showPassword, setShowPassword] = useState(false)
-    const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+    const dispatch = useDispatch();
+    const navigate = useNavigate();
 
-    const dispatch = useDispatch()
-    const navigate = useNavigate()
+    // Pull user state
+    const userState = useSelector((state) => state.user);
+    const { userInfo, loading, error, success } = userState;
 
-    // 3. Pull user state from Redux
-    const userState = useSelector((state) => state.user)
-    const { userInfo, loading, error, success } = userState
+    // Pull order state for the table
+    const orderState = useSelector((state) => state.order);
+    const { myOrders, loadingMyOrders, errorMyOrders } = orderState;
 
-    // 4. Populate the form or redirect if logged out
     useEffect(() => {
         if (!userInfo) {
-            navigate('/login')
+            navigate('/login');
         } else {
-            // Pre-fill the form with the user's current data
-            setName(userInfo.name || '')
-            setEmail(userInfo.email || '')
+            setName(userInfo.name || '');
+            setEmail(userInfo.email || '');
+
+            // Dispatch the thunk to grab the user's order history!
+            dispatch(listMyOrders());
         }
-    }, [navigate, userInfo])
+    }, [navigate, userInfo, dispatch]);
 
-    // 5. Submit Handler
     const submitHandler = (e) => {
-        e.preventDefault()
-
+        e.preventDefault();
         if (password !== confirmPassword) {
-            setMessage('Passwords do not match')
+            setMessage('Passwords do not match');
         } else {
-            setMessage('')
-            // Dispatch the update action to your Django backend
+            setMessage('');
             dispatch(updateUserProfile({
                 'id': userInfo._id,
                 'name': name,
                 'email': email,
                 'password': password
-            }))
+            }));
         }
-    }
+    };
+
+    // Create a sorted copy of the orders to display in the table
+    const sortedOrders = myOrders ? [...myOrders].sort((a, b) => {
+        // Priority 1: If 'a' is paid and 'b' is not, put 'a' higher up
+        if (a.isPaid && !b.isPaid) return -1;
+        if (!a.isPaid && b.isPaid) return 1;
+
+        // Priority 2: If they have the same paid status, put the newest order first
+        return new Date(b.createdAt) - new Date(a.createdAt);
+    }) : [];
 
     return (
         <Row className="mt-5">
@@ -133,14 +143,60 @@ function ProfileScreen() {
                 </Form>
             </Col>
 
-            {/*  User Orders Placeholder */}
+            {/* RIGHT COLUMN: My Orders Table */}
             <Col md={9}>
                 <h2>My Orders</h2>
-                {/* We will build the Order List component here later */}
-                <Message variant='info'>Order history will appear here.</Message>
+                {loadingMyOrders ? (
+                    <Loader />
+                ) : errorMyOrders ? (
+                    <Message variant='danger'>{errorMyOrders}</Message>
+                ) : myOrders?.length === 0 ? (
+                    <Message variant='info'>You have no previous orders.</Message>
+                ) : (
+                    <Table striped responsive className='table-sm'>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Date</th>
+                                <th>Total</th>
+                                <th>Paid</th>
+                                <th>Delivered</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sortedOrders.map((order) => (
+                                <tr key={order._id}>
+                                    <td>{order._id}</td>
+                                    <td>{order.createdAt?.substring(0, 10)}</td>
+                                    <td>${order.totalPrice}</td>
+                                    <td>
+                                        {order.isPaid ? (
+                                            order.paidAt?.substring(0, 10)
+                                        ) : (
+                                            <FontAwesomeIcon icon={faTimes} style={{ color: 'red' }} />
+                                        )}
+                                    </td>
+                                    <td>
+                                        {order.isDelivered ? (
+                                            order.deliveredAt?.substring(0, 10)
+                                        ) : (
+                                            <FontAwesomeIcon icon={faTimes} style={{ color: 'red' }} />
+                                        )}
+                                    </td>
+                                    <td>
+                                        <Button as={Link} to={`/order/${order._id}`} className='btn-sm' variant='light'>
+                                            Details
+                                        </Button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </Table>
+                )}
             </Col>
         </Row>
-    )
+    );
 }
 
-export default ProfileScreen
+export default ProfileScreen;
